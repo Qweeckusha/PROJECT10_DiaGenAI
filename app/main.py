@@ -1,51 +1,35 @@
+import httpx
+from fastapi import FastAPI, HTTPException, Response
+from pydantic import BaseModel, ValidationError
 
-
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-from .schemas import BPMNProcess, BPMNElement, BPMNFlow
+from .llm import generate_process
 from .xml_builder import build_bpmn_xml
-
-
 
 app = FastAPI(title="BPMN AI Generator")
 
 
-# IN
 class ProcessRequest(BaseModel):
     description: str
 
 
-# OUT
-class ProcessResponse(BaseModel):
-    bpmn_xml: str
-    status: str
-
-
-@app.post("/generate-bpmn", response_model=ProcessResponse)
+@app.post("/generate-bpmn")
 async def generate_bpmn(request: ProcessRequest):
     """
-    Эндпоинт принимает текстовое описание бизнес-процесса
-    и возвращает валидный XML и статус
+    Генерирует BPMN 2.0 XML из текстового описания бизнес-процесса.
+
+    :param request: Текстовое описание процесса
+    :return: Валидный BPMN 2.0 XML
     """
+    try:
+        process = await generate_process(request.description)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="Ollama недоступна")
+    except ValidationError:
+        raise HTTPException(status_code=502, detail="Модель вернула некорректную структуру")
 
-    test_process = BPMNProcess(
-        process_name="Тестовый процесс",
-        elements=[
-            BPMNElement(id="start_1", type="startEvent", name="Начало"),
-            BPMNElement(id="task_1", type="task", name="Тестовая задача"),
-            BPMNElement(id="end_1", type="endEvent", name="Конец")
-        ],
-        flows=[
-            BPMNFlow(id="flow_1", source="start_1", target="task_1"),
-            BPMNFlow(id="flow_2", source="task_1", target="end_1")
-        ]
-    )
+    bpmn_xml = build_bpmn_xml(process)
+    return Response(content=bpmn_xml, media_type="application/xml")
 
-    # Конвертируем в XML
-    bpmn_xml = build_bpmn_xml(test_process)
-
-    return ProcessResponse(bpmn_xml=bpmn_xml, status="success")
 
 @app.get("/health")
 async def health():
