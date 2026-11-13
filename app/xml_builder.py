@@ -103,11 +103,7 @@ def build_bpmn_xml(process: BPMNProcess) -> str:
         flow_element.set('targetRef', flow.target)
 
         if flow.condition:
-            condition_expr = etree.SubElement(
-                flow_element,
-                '{http://www.omg.org/spec/BPMN/20100524/MODEL}conditionExpression'
-            )
-            condition_expr.text = flow.condition
+            flow_element.set('name', flow.condition)
 
     # --- 4. Визуальная часть (DI) и цвета ---
     diagram = etree.SubElement(
@@ -214,6 +210,25 @@ def build_bpmn_xml(process: BPMNProcess) -> str:
             )
             wp.set('x', str(wx))
             wp.set('y', str(wy))
+
+        if source_elem and source_elem.type == 'exclusiveGateway' and flow.condition:
+            # Вычисляем позицию для подписи (посередине стрелки)
+            if len(waypoints) >= 2:
+                # Берём среднюю точку между первой и последней waypoint
+                mid_idx = len(waypoints) // 2
+                label_x, label_y = waypoints[mid_idx]
+
+                label = etree.SubElement(
+                    edge, '{http://www.omg.org/spec/BPMN/20100524/DI}BPMNLabel'
+                )
+                bounds = etree.SubElement(
+                    label, '{http://www.omg.org/spec/DD/20100524/DC}Bounds'
+                )
+                # Центрируем текст относительно точки
+                bounds.set('x', str(label_x - 15))
+                bounds.set('y', str(label_y - 20))
+                bounds.set('width', '30')
+                bounds.set('height', '20')
 
     xml_string = etree.tostring(definitions, pretty_print=True, encoding='unicode')
     return f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_string}'

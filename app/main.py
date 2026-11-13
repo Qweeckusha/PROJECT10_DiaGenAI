@@ -27,6 +27,7 @@ async def generate_bpmn(request: ProcessRequest):
     except ValidationError:
         raise HTTPException(status_code=502, detail="Модель вернула некорректную структуру")
 
+    print(process)
     bpmn_xml = build_bpmn_xml(process)
     return Response(content=bpmn_xml, media_type="application/xml")
 
